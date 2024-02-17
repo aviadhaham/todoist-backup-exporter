@@ -1,6 +1,7 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -69,11 +70,11 @@ func main() {
 	defer resp.Body.Close()
 
 	// Save backup to file
-	destFilename := "Todoist_Backup.zip"
+	destFilename := "Todoist_Backup.zip.gz"
 	if destFilenameIncludeDate {
 		replacer := strings.NewReplacer(" ", "_", ":", "-")
 		backupVersionClean := replacer.Replace(backup.Version)
-		destFilename = fmt.Sprintf("Todoist_Backup_%s.zip", backupVersionClean)
+		destFilename = fmt.Sprintf("Todoist_Backup_%s.zip.gz", backupVersionClean)
 	}
 	destFilepath := filepath.Join(destDir, destFilename)
 	out, err := os.Create(destFilepath)
@@ -81,7 +82,16 @@ func main() {
 		log.Fatalf("Failed to create output file: %s", err)
 	}
 	defer out.Close()
-	if _, err := io.Copy(out, resp.Body); err != nil {
+
+	gw := gzip.NewWriter(out)
+	defer func() {
+		if err := gw.Close(); err != nil {
+			log.Fatalf("Failed to close gzip writer: %s", err)
+		}
+	}()
+
+	_, err = io.Copy(gw, resp.Body)
+	if err != nil {
 		log.Fatalf("Failed to write response to output file: %s", err)
 	}
 
